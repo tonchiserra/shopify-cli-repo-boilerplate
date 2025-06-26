@@ -1,0 +1,92 @@
+name: Deploy to Shopify store PRODUCTION theme
+
+on:
+  push:
+    branches:
+      - production
+
+jobs:
+  build_backup_artifact:
+    if: |
+      !contains(github.event.head_commit.message, 'no-backup') &&
+      !contains(github.event.head_commit.message, 'no-deploy')
+    name: Download theme and build backup artifact
+    runs-on: ubuntu-latest
+    env:
+      SHOPIFY_CLI_THEME_TOKEN: ${{ secrets.SHOPIFY_THEMEKIT_PASSWORD }}
+      SHOPIFY_FLAG_STORE: ${{ secrets.SHOPIFY_STORE_URI }}
+      DESIRED_THEME_ID: ${{ secrets.SHOPIFY_PRODUCTION_THEME_ID }}
+    strategy:
+      matrix:
+        node-version: [16.x]
+    steps:
+      - name: Get current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+      - uses: actions/checkout@v3
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.1
+          bundler: 'latest'
+      - name: Install Shopify CLI
+        run: npm install -g @shopify/cli @shopify/theme
+      - name: Download theme
+        run: |
+          mkdir theme_backup
+          shopify theme pull --path ./theme_backup --nodelete --theme $DESIRED_THEME_ID --verbose
+      - name: Install dependencies & zip theme backup artifact
+        run: |
+          apt-get update && apt-get install -y zip
+          rm -rf node_modules
+          npm i
+          echo "--------- Folder dir files:"
+          ls
+          cd theme_backup && zip -r ../theme.zip .
+      - name: Archive code artifact results
+        uses: actions/upload-artifact@v3
+        with:
+          name: theme-backup-${{ steps.date.outputs.date }}
+          path: theme.zip
+          retention-days: 5
+
+  deploy_production_theme:
+    if: |
+      always() &&
+      !contains(github.event.head_commit.message, 'no-deploy') &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
+    needs: build_backup_artifact
+    name: Deploy --- PRODUCTION Shopify theme
+    runs-on: ubuntu-latest
+    env:
+      SHOPIFY_CLI_THEME_TOKEN: ${{ secrets.SHOPIFY_THEMEKIT_PASSWORD }}
+      SHOPIFY_FLAG_STORE: ${{ secrets.SHOPIFY_STORE_URI }}
+      DESIRED_THEME_ID: ${{ secrets.SHOPIFY_PRODUCTION_THEME_ID }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.1
+          bundler: 'latest'
+      - name: Running npm tasks
+        run: |
+          echo "PRODUCTION THEME TRIGGER EVENT"
+          npm ci
+          echo "--------- Folder dir files:"
+          ls
+          npm run webpack:build --if-present
+      - name: Install Shopify CLI
+        run: npm install -g @shopify/cli @shopify/theme
+      - name: Deploy
+        run: shopify theme push --path ./shopify --nodelete -x templates/*.json sections/*.json locales/*.json config/settings_data.json --theme $DESIRED_THEME_ID -a
+

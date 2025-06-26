@@ -1,0 +1,19 @@
+{
+    "name": "client-name-theme",
+    "version": "1.0.0",
+    "description": "Shopify theme for [Client Name]",
+    "author": "tonchiserra",
+    "type": "module",
+    "scripts": {
+        "start": "shopify theme dev --store client-store.myshopify.com --theme-editor-sync --path ./shopify",
+        "deploy": "shopify theme push --ignore config/settings_data.json templates/*.json --path ./shopify",
+        "deploy-all": "shopify theme push --path ./shopify",
+        "pull-theme": "shopify theme pull --path ./shopify",
+        "pull-merch": "shopify theme pull --nodelete -o templates/*.json config/settings_data.json locales/*.json --path ./shopify"
+    },
+    "keywords": [],
+    "license": "ISC",
+    "dependencies": {
+        "@shopify/cli": "^3.73.0"
+    }
+}

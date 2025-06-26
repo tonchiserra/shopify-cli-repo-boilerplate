@@ -1,0 +1,68 @@
+name: Label based theme deployments
+
+on:
+  pull_request:
+    types: [ labeled ]
+
+jobs:
+  deploy_qa_theme:
+    if: ${{ github.event.label.name == 'qa' }}
+    name: Deploy --- QA Shopify theme
+    runs-on: ubuntu-latest
+    env:
+      SHOPIFY_CLI_THEME_TOKEN: ${{ secrets.SHOPIFY_THEMEKIT_PASSWORD }}
+      SHOPIFY_FLAG_STORE: ${{ secrets.SHOPIFY_STORE_URI }}
+      DESIRED_THEME_ID: ${{ secrets.SHOPIFY_QA_THEME_ID }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js 18
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.1
+          bundler: 'latest'
+      - name: Running npm tasks
+        run: |
+          echo "STAGING THEME DEPLOY TRIGGER EVENT"
+          npm ci
+          echo "--------- Folder dir files:"
+          ls
+          npm run webpack:build --if-present
+      - name: Install Shopify CLI
+        run: npm install -g @shopify/cli @shopify/theme
+      - name: Deploy
+        run: shopify theme push --path ./shopify --nodelete -x templates/*.json sections/*.json locales/*.json config/settings_data.json --theme $DESIRED_THEME_ID -a
+
+  deploy_staging_theme:
+    if: ${{ github.event.label.name == 'staging' }}
+    name: Deploy --- Staging Shopify theme
+    runs-on: ubuntu-latest
+    env:
+      SHOPIFY_CLI_THEME_TOKEN: ${{ secrets.SHOPIFY_THEMEKIT_PASSWORD }}
+      SHOPIFY_FLAG_STORE: ${{ secrets.SHOPIFY_STORE_URI }}
+      DESIRED_THEME_ID: ${{ secrets.SHOPIFY_STAGING_THEME_ID }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Use Node.js 18
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'npm'
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.1
+          bundler: 'latest'
+      - name: Running npm tasks
+        run: |
+          echo "STAGING THEME DEPLOY TRIGGER EVENT"
+          npm ci
+          echo "--------- Folder dir files:"
+          ls
+          npm run webpack:build --if-present
+      - name: Install Shopify CLI
+        run: npm install -g @shopify/cli @shopify/theme
+      - name: Deploy
+        run: shopify theme push --path ./shopify --nodelete -x templates/*.json sections/*.json locales/*.json config/settings_data.json --theme $DESIRED_THEME_ID -a
